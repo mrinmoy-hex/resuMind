@@ -125,96 +125,7 @@ The goal is simple:
 
 ---
 
-# Project Architecture
 
-ResuMind separates the application into several responsibilities:
-
-```text
-resuMind/
-│
-├── app.py
-│
-├── backend/
-│   │
-│   ├── ingestion/
-│   │   └── ...
-│   │
-│   ├── extraction/
-│   │   ├── jd_parser.py
-│   │   ├── structurer.py
-│   │   └── ...
-│   │
-│   └── matching/
-│       ├── scorer.py
-│       └── ...
-│
-├── data/
-│   └── jd.csv
-│
-├── requirements.txt
-├── .env
-└── README.md
-```
-
-### `app.py`
-
-The Streamlit application and main orchestration layer.
-
-It handles:
-
-* UI
-* File uploads
-* Job-role selection
-* Resume processing
-* Analysis configuration
-* Candidate ranking
-* Result visualization
-
-### `backend/ingestion`
-
-Responsible for reading and extracting raw text from supported files.
-
-Typical responsibilities include:
-
-* PDF extraction
-* DOCX extraction
-* TXT processing
-* CSV loading
-* Text-column detection
-
-### `backend/extraction`
-
-Responsible for converting raw text into structured information.
-
-#### `jd_parser.py`
-
-Builds a structured job description from raw JD text.
-
-#### `structurer.py`
-
-Converts resume text into a structured candidate representation.
-
-This allows the matching system to work with information such as:
-
-* Candidate name
-* Skills
-* Experience
-* Resume metadata
-
-### `backend/matching`
-
-Contains the candidate matching and ranking logic.
-
-#### `scorer.py`
-
-Responsible for:
-
-* Candidate scoring
-* Requirement matching
-* Ranking
-* Match explanations
-
----
 
 # 🔄 Processing Pipeline
 
@@ -636,21 +547,6 @@ This makes the system useful not only for producing a score, but also for explai
 
 ---
 
-# Project Status
-
-**Active development**
-
-ResuMind is currently focused on improving:
-
-1. Resume/JD extraction
-2. Candidate matching accuracy
-3. Ranking quality
-4. Explainability
-5. User experience
-
-The architecture is intentionally modular so that the ingestion, extraction, and matching components can evolve independently.
-
----
 
 # Author
 
