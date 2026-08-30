@@ -5,7 +5,7 @@ from sentence_transformers import util
 
 from backend.matching.embedder import get_model, embed_text, embed_texts
 
-
+# Cache the KeyBERT model to avoid reloading it on every re-run of the Streamlit app
 _kw_model = None
 
 

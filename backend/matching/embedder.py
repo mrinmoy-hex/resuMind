@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = "all-MiniLM-L6-v2"
 
-
+# cache the model to avoid reloading it on every re-run of the Streamlit app
 @st.cache_resource(show_spinner=False)
 def get_model() -> SentenceTransformer:
     """
