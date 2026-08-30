@@ -1,4 +1,5 @@
 myenv
 .vscode/
 .env
-data
+data/
+data_backup/
