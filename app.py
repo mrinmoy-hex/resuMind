@@ -43,9 +43,7 @@ st.set_page_config(
 # Helpers
 # ============================================================
 
-def get_rating(
-    score: float,
-) -> tuple[str, str]:
+def get_rating(score: float) -> tuple[str, str]:
 
     if score >= 0.75:
         return "Excellent Match", "🟢"
@@ -62,31 +60,22 @@ def get_rating(
     return "Poor Match", "⚪"
 
 
-def save_to_temp(
-    uploaded_file,
-) -> str:
+def save_to_temp(uploaded_file) -> str:
 
-    suffix = Path(
-        uploaded_file.name
-    ).suffix
+    suffix = Path(uploaded_file.name).suffix
 
     with tempfile.NamedTemporaryFile(
         delete=False,
         suffix=suffix,
     ) as tmp:
 
-        tmp.write(
-            uploaded_file.getbuffer()
-        )
+        tmp.write(uploaded_file.getbuffer())
 
         return tmp.name
 
 
-def safe_get(
-    obj,
-    attribute: str,
-    default=None,
-):
+def safe_get(obj, attribute: str, default=None):
+
     return getattr(
         obj,
         attribute,
@@ -100,9 +89,7 @@ def pick_text_column(
     key: str,
 ) -> str:
 
-    guessed_col = guess_text_column(
-        df
-    )
+    guessed_col = guess_text_column(df)
 
     if guessed_col not in df.columns:
         guessed_col = df.columns[0]
@@ -177,13 +164,9 @@ def render_candidate(
         )
     )
 
-    label, icon = get_rating(
-        score
-    )
+    label, icon = get_rating(score)
 
-    with st.container(
-        border=True
-    ):
+    with st.container(border=True):
 
         header = st.columns(
             [0.6, 3.5, 2, 1.2]
@@ -339,9 +322,7 @@ def render_candidate(
                 justification
             )
 
-            analysis_cols = st.columns(
-                2
-            )
+            analysis_cols = st.columns(2)
 
             with analysis_cols[0]:
 
@@ -352,6 +333,7 @@ def render_candidate(
                     )
 
                     for strength in strengths:
+
                         st.markdown(
                             f"✓ {strength}"
                         )
@@ -365,9 +347,181 @@ def render_candidate(
                     )
 
                     for concern in concerns:
+
                         st.markdown(
                             f"⚠ {concern}"
                         )
+
+
+# ============================================================
+# Job Database
+# ============================================================
+
+def find_job_database() -> Path | None:
+
+    """
+    Look for the internal JD database in a few sensible
+    project locations.
+
+    This means the user does not need to upload jd.csv.
+    """
+
+    candidates = [
+        Path("jd.csv"),
+        Path("data/jd.csv"),
+        Path("data/job_descriptions.csv"),
+        Path("backend/data/jd.csv"),
+    ]
+
+    for path in candidates:
+
+        if path.exists() and path.is_file():
+            return path
+
+    return None
+
+
+@st.cache_data
+def load_job_database(
+    path: str,
+) -> pd.DataFrame:
+
+    df = pd.read_csv(path)
+
+    if df.empty:
+        raise ValueError(
+            "The job database is empty."
+        )
+
+    return df
+
+
+def prepare_job_database(
+    df: pd.DataFrame,
+) -> tuple[str | None, str | None]:
+
+    """
+    Detect the role/title and JD columns.
+
+    Preferred schema:
+
+        position_title
+        job_description
+
+    Falls back to common alternatives.
+    """
+
+    title_candidates = [
+        "position_title",
+        "job_title",
+        "title",
+        "position",
+        "role",
+    ]
+
+    description_candidates = [
+        "job_description",
+        "description",
+        "job_desc",
+        "jd",
+        "requirements",
+    ]
+
+    title_column = next(
+        (
+            col
+            for col in title_candidates
+            if col in df.columns
+        ),
+        None,
+    )
+
+    description_column = next(
+        (
+            col
+            for col in description_candidates
+            if col in df.columns
+        ),
+        None,
+    )
+
+    return (
+        title_column,
+        description_column,
+    )
+
+
+def get_available_roles(
+    df: pd.DataFrame,
+    title_column: str,
+) -> list[str]:
+
+    roles = (
+        df[title_column]
+        .dropna()
+        .astype(str)
+        .str.strip()
+    )
+
+    roles = roles[
+        roles != ""
+    ]
+
+    return sorted(
+        roles.unique(),
+        key=str.lower,
+    )
+
+
+def build_jd_from_role(
+    df: pd.DataFrame,
+    role: str,
+    title_column: str,
+    description_column: str,
+    keyword_count: int,
+):
+
+    """
+    Build a JD from every database entry matching the
+    selected role.
+
+    If multiple Web Developer rows exist, their
+    descriptions are combined instead of arbitrarily
+    selecting only the first one.
+    """
+
+    role_mask = (
+        df[title_column]
+        .astype(str)
+        .str.strip()
+        .str.casefold()
+        == role.strip().casefold()
+    )
+
+    matches = df.loc[
+        role_mask,
+        description_column,
+    ]
+
+    descriptions = [
+        str(text).strip()
+        for text in matches.dropna()
+        if str(text).strip()
+    ]
+
+    if not descriptions:
+        return None
+
+    combined_description = "\n\n".join(
+        descriptions
+    )
+
+    return build_job_description(
+        role,
+        combined_description,
+        title=role,
+        keyword_count=keyword_count,
+    )
 
 
 # ============================================================
@@ -415,11 +569,13 @@ with st.sidebar:
         """
 ### How ResuMind works
 
-**1. Extract**  
-Read the JD and resumes.
+**1. Select a role**  
+Choose the type of job you're
+screening for.
 
 **2. Understand**  
-Generate semantic embeddings.
+ResuMind loads the relevant
+job requirements.
 
 **3. Match**  
 Compare job requirements
@@ -429,8 +585,7 @@ against candidate evidence.
 Calculate a weighted score.
 
 **5. Explain**  
-Use an LLM to explain
-the result.
+Use AI to explain the result.
 """
     )
 
@@ -463,110 +618,231 @@ st.divider()
 
 
 # ============================================================
-# Job Description
+# Job Target
 # ============================================================
 
 st.header(
-    "1️⃣ Job Description"
-)
-
-jd_file = st.file_uploader(
-    "Upload a job description",
-    type=[
-        "pdf",
-        "docx",
-        "txt",
-        "csv",
-    ],
+    "1️⃣ Target Job"
 )
 
 jd = None
 
-if jd_file:
+# ------------------------------------------------------------
+# Preferred path: internal job database
+# ------------------------------------------------------------
+
+job_database_path = find_job_database()
+
+if job_database_path:
 
     try:
 
-        if jd_file.name.lower().endswith(
-            ".csv"
-        ):
+        job_df = load_job_database(
+            str(job_database_path)
+        )
 
-            jd_path = save_to_temp(
-                jd_file
+        title_column, description_column = (
+            prepare_job_database(job_df)
+        )
+
+        if not title_column:
+
+            st.error(
+                "The job database does not contain "
+                "a recognizable job title column."
             )
 
-            df = pd.read_csv(
-                jd_path
+            st.caption(
+                "Expected something like "
+                "`position_title`."
             )
 
-            if df.empty:
-                st.error(
-                    "The CSV is empty."
-                )
+        elif not description_column:
 
-            else:
+            st.error(
+                "The job database does not contain "
+                "a recognizable job description column."
+            )
 
-                jd_column = pick_text_column(
-                    df,
-                    "Job description column",
-                    "jd_column",
-                )
-
-                rows = load_texts_from_csv(
-                    jd_path,
-                    jd_column,
-                )
-
-                if rows:
-
-                    choice = st.selectbox(
-                        "Select JD",
-                        range(len(rows)),
-                        format_func=lambda i:
-                        f"Row {i}: "
-                        f"{rows[i][1][:70]}...",
-                    )
-
-                    jd_id, jd_text = rows[
-                        choice
-                    ]
-
-                    jd = build_job_description(
-                        jd_id,
-                        jd_text,
-                        title=str(jd_id),
-                        keyword_count=keyword_count,
-                    )
-
-                    st.success(
-                        "Job description loaded."
-                    )
+            st.caption(
+                "Expected something like "
+                "`job_description`."
+            )
 
         else:
 
-            jd_path = save_to_temp(
-                jd_file
+            roles = get_available_roles(
+                job_df,
+                title_column,
             )
 
-            jd_text = extract_text(
-                jd_path
+            st.write(
+                "Choose the type of position you're "
+                "screening candidates for."
             )
 
-            jd = build_job_description(
-                jd_file.name,
-                jd_text,
-                title=jd_file.name,
-                keyword_count=keyword_count,
+            selected_role = st.selectbox(
+                "Job role",
+                roles,
+                index=0 if roles else None,
+                placeholder="Search or select a role...",
             )
 
-            st.success(
-                f"Loaded: {jd_file.name}"
-            )
+            if selected_role:
+
+                jd = build_jd_from_role(
+                    job_df,
+                    selected_role,
+                    title_column,
+                    description_column,
+                    keyword_count,
+                )
+
+                if jd:
+
+                    st.success(
+                        f"✓ Using requirements for "
+                        f"**{selected_role}**"
+                    )
+
+                    st.caption(
+                        "ResuMind automatically selected "
+                        "the relevant job descriptions "
+                        "from its internal database."
+                    )
+
+                else:
+
+                    st.error(
+                        "No usable job description was "
+                        "found for this role."
+                    )
 
     except Exception as exc:
 
         st.error(
-            f"Failed to process JD: {exc}"
+            f"Failed to load job database: {exc}"
         )
+
+else:
+
+    st.info(
+        "No internal job database was found. "
+        "You can upload a custom job description below."
+    )
+
+
+# ------------------------------------------------------------
+# Custom JD fallback
+# ------------------------------------------------------------
+
+with st.expander(
+    "📄 Use a custom job description instead",
+    expanded=not bool(job_database_path),
+):
+
+    st.caption(
+        "Use this when you have a specific job posting "
+        "that isn't in the ResuMind job database."
+    )
+
+    custom_jd_file = st.file_uploader(
+        "Upload custom JD",
+        type=[
+            "pdf",
+            "docx",
+            "txt",
+            "csv",
+        ],
+        key="custom_jd",
+    )
+
+    if custom_jd_file:
+
+        try:
+
+            if custom_jd_file.name.lower().endswith(
+                ".csv"
+            ):
+
+                custom_jd_path = save_to_temp(
+                    custom_jd_file
+                )
+
+                custom_df = pd.read_csv(
+                    custom_jd_path
+                )
+
+                if custom_df.empty:
+
+                    st.error(
+                        "The CSV is empty."
+                    )
+
+                else:
+
+                    custom_column = pick_text_column(
+                        custom_df,
+                        "Custom JD column",
+                        "custom_jd_column",
+                    )
+
+                    rows = load_texts_from_csv(
+                        custom_jd_path,
+                        custom_column,
+                    )
+
+                    if rows:
+
+                        choice = st.selectbox(
+                            "Select job description",
+                            range(len(rows)),
+                            format_func=lambda i:
+                            f"Row {i}: "
+                            f"{rows[i][1][:70]}...",
+                            key="custom_jd_choice",
+                        )
+
+                        jd_id, jd_text = rows[
+                            choice
+                        ]
+
+                        jd = build_job_description(
+                            jd_id,
+                            jd_text,
+                            title=str(jd_id),
+                            keyword_count=keyword_count,
+                        )
+
+            else:
+
+                custom_jd_path = save_to_temp(
+                    custom_jd_file
+                )
+
+                custom_jd_text = extract_text(
+                    custom_jd_path
+                )
+
+                jd = build_job_description(
+                    custom_jd_file.name,
+                    custom_jd_text,
+                    title=custom_jd_file.name,
+                    keyword_count=keyword_count,
+                )
+
+            if jd:
+
+                st.success(
+                    f"✓ Custom job description loaded: "
+                    f"{custom_jd_file.name}"
+                )
+
+        except Exception as exc:
+
+            st.error(
+                f"Failed to process custom JD: {exc}"
+            )
 
 
 # ============================================================
@@ -575,6 +851,11 @@ if jd_file:
 
 st.header(
     "2️⃣ Candidate Resumes"
+)
+
+st.write(
+    "Upload one or more resumes to compare "
+    "against the selected role."
 )
 
 resume_files = st.file_uploader(
@@ -692,10 +973,21 @@ run = st.button(
 
 if not ready:
 
-    st.caption(
-        "Upload a job description and "
-        "at least one resume."
-    )
+    if jd is None and not resumes:
+        st.caption(
+            "Choose a job role and upload at least "
+            "one resume."
+        )
+
+    elif jd is None:
+        st.caption(
+            "Choose a target job role before analyzing."
+        )
+
+    elif not resumes:
+        st.caption(
+            "Upload at least one resume before analyzing."
+        )
 
 
 # ============================================================
@@ -747,6 +1039,15 @@ if run:
             "results"
         ] = results
 
+        # Store selected role for result display.
+        st.session_state[
+            "selected_role"
+        ] = getattr(
+            jd,
+            "title",
+            None,
+        )
+
     except Exception as exc:
 
         st.error(
@@ -771,6 +1072,16 @@ if results:
     st.header(
         "🏆 Candidate Ranking"
     )
+
+    selected_role = st.session_state.get(
+        "selected_role"
+    )
+
+    if selected_role:
+
+        st.caption(
+            f"Results for: **{selected_role}**"
+        )
 
     scores = [
         float(
@@ -803,18 +1114,21 @@ if results:
     metrics = st.columns(3)
 
     with metrics[0]:
+
         st.metric(
             "Candidates",
             len(results),
         )
 
     with metrics[1]:
+
         st.metric(
             "Top Match",
             f"{top_score:.0%}",
         )
 
     with metrics[2]:
+
         st.metric(
             "Strong Matches",
             strong_matches,
@@ -831,3 +1145,4 @@ if results:
             rank,
             result,
         )
+
