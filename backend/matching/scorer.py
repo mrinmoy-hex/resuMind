@@ -1,7 +1,7 @@
 from sentence_transformers import util
 from backend.storage.models import Resume, JobDescription, MatchResult
 from .embedder import embed_text
-from matching.llm_reasoner import generate_justification
+from backend.matching.llm_reasoner import generate_justification
 
 
 def rank_resumes(jd: JobDescription, resumes: list[Resume]) -> list[MatchResult]:
