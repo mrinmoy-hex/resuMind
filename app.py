@@ -622,7 +622,7 @@ st.divider()
 # ============================================================
 
 st.header(
-    "1️⃣ Target Job"
+    "Target Job"
 )
 
 jd = None
@@ -850,7 +850,7 @@ with st.expander(
 # ============================================================
 
 st.header(
-    "2️⃣ Candidate Resumes"
+    "Candidate Resumes"
 )
 
 st.write(
